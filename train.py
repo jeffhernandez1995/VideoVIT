@@ -629,7 +629,7 @@ class MaskedAutoencoder(keras.Model):
 
         # Patch the augmented images.
         # patches = self.patch_layer(aug_videos)
-        vid_patches, frame_patches =  self.patch_layer([aug_videos, next_frame])
+        vid_patches, frame_patches = self.patch_layer([aug_videos, next_frame])
 
         # Encode the patches.
         (
@@ -733,6 +733,7 @@ mae_model = MaskedAutoencoder(
     epsilon=LAYER_NORM_EPS,
 )
 
+
 class WarmUpCosine(keras.optimizers.schedules.LearningRateSchedule):
     def __init__(
         self, learning_rate_base, total_steps, warmup_learning_rate, warmup_steps
@@ -788,7 +789,7 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath='models/KTH/',
     monitor='val_loss',
     mode='min',
-    save_best_only=True
+    save_best_only=True,
 )
 
 train_callbacks = [
