@@ -19,7 +19,7 @@ np.random.seed(SEED)
 random.seed(SEED)
 
 # DATA
-BUFFER_SIZE = 1024
+BUFFER_SIZE = 300
 BATCH_SIZE = 64
 AUTO = tf.data.AUTOTUNE
 INPUT_SHAPE = (15, 120, 160, 3)
