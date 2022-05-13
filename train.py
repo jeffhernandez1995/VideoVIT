@@ -3,6 +3,7 @@ import tensorflow_addons as tfa
 from tensorflow import keras
 import tensorflow as tf
 import glob
+import gc
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -831,8 +832,16 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     save_format='tf',
 )
 
+
+class CollectGarbage(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        gc.collect()
+        tf.keras.backend.clear_session()
+
+
 train_callbacks = [
-    model_checkpoint_callback
+    model_checkpoint_callback,
+    CollectGarbage(),
 ]
 
 optimizer = tfa.optimizers.AdamW(learning_rate=scheduled_lrs, weight_decay=WEIGHT_DECAY)
