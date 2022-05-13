@@ -823,7 +823,7 @@ scheduled_lrs = WarmUpCosine(
 )
 
 model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath='models/KTH/',
+    filepath='models/KTH/videovit.{epoch:02d}-{val_loss:.2f}.h5',
     monitor='val_loss',
     mode='min',
     save_best_only=True,
