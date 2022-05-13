@@ -81,7 +81,7 @@ def parse(record):
     frame_raw = tf.io.decode_raw(frame_raw, tf.uint8)
     frame_raw = tf.cast(frame_raw, tf.float32)
 
-    video_raw = tf.reshape(video_raw, INPUT_SHAPE[:2] + (1,))
+    video_raw = tf.reshape(video_raw, INPUT_SHAPE[:3] + (1,))
     frame_raw = tf.reshape(frame_raw, OUTPUT_SHAPE[:2] + (1,))
 
     video_raw = tf.concat([video_raw, video_raw, video_raw], axis=-1)
