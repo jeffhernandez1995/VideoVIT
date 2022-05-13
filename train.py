@@ -598,7 +598,7 @@ class MaskedAutoencoder(keras.Model):
             time_len=time_len,
             projection_dim=enc_projection_dim,
             mask_proportion=mask_proportion,
-            downstream=self.training
+            downstream=False
         )
         self.encoder = create_encoder(
             num_heads=num_enc_heads,
