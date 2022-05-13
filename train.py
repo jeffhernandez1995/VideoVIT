@@ -597,7 +597,7 @@ class MaskedAutoencoder(keras.Model):
             patch_size=patch_size,
             time_len=time_len,
             projection_dim=enc_projection_dim,
-            mask_proportion=mask_proportion
+            mask_proportion=mask_proportion,
             downstream=self.training
         )
         self.encoder = create_encoder(
