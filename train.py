@@ -617,20 +617,12 @@ class MaskedAutoencoder(keras.Model):
             transformer_units=dec_transformer_units,
             image_size=image_size[0],
         )
-        self.resize = layers.Reshape((-1, self.patch_layer.patch_size * self.patch_layer.patch_size * 1))
+        self.resize = layers.Reshape((-1, patch_size * patch_size * 1))
+        self.mse_loss = tf.keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error")
+        self.loss_tracker = keras.metrics.Mean(name="loss")
+        self.mae_metric = keras.metrics.MeanAbsoluteError(name="mae")
 
-    def calculate_loss(self, data, test=False):
-        videos, next_frames = data
-        # Augment the input images.
-        if test:
-            aug_videos, next_frame = self.test_augmentation_model([videos, next_frames])
-        else:
-            aug_videos, next_frame = self.train_augmentation_model([videos, next_frames])
-
-        # Patch the augmented images.
-        # patches = self.patch_layer(aug_videos)
-        vid_patches, frame_patches = self.patch_layer([aug_videos, next_frame])
-
+    def call(self, inputs, training=None):
         # Encode the patches.
         (
             unmasked_embeddings,
@@ -638,7 +630,7 @@ class MaskedAutoencoder(keras.Model):
             unmasked_positions,
             mask_indices,
             unmask_indices,
-        ) = self.patch_encoder(vid_patches)
+        ) = self.patch_encoder(inputs)
 
         # Pass the unmaksed patche to the encoder.
         encoder_outputs = self.encoder(unmasked_embeddings)
@@ -649,6 +641,73 @@ class MaskedAutoencoder(keras.Model):
 
         # Decode the inputs.
         decoder_outputs = self.decoder(decoder_inputs)
+        return decoder_outputs
+
+    def train_step(self, data):
+        videos, next_frames = data
+        aug_videos, next_frame = self.train_augmentation_model([videos, next_frames])
+        # Patch the augmented images.
+        vid_patches, frame_patches = self.patch_layer([aug_videos, next_frame])
+
+        with tf.GradientTape() as tape:
+            decoder_outputs = self(vid_patches)
+            decoder_patches = tf.image.extract_patches(
+                images=decoder_outputs,
+                sizes=[1, self.patch_layer.patch_size, self.patch_layer.patch_size, 1],
+                strides=[1, self.patch_layer.patch_size, self.patch_layer.patch_size, 1],
+                rates=[1, 1, 1, 1],
+                padding="VALID",
+            )
+            # Calculate loss on all patches.
+            loss_output = self.resize(decoder_patches)
+            loss_patch = self.resize(frame_patches)
+            # Calculate loss on masked patches.
+            # loss_patch = tf.gather(
+            #     loss_patch,
+            #     mask_indices,
+            #     axis=1,
+            #     batch_dims=1
+            # )
+            # loss_output = tf.gather(
+            #     loss_output,
+            #     mask_indices,
+            #     axis=1,
+            #     batch_dims=1
+            # )
+            # Compute the total loss.
+            # Calculate loss on masked patches
+            # total_loss = self.compiled_loss(loss_patch, loss_output)
+            # # Calculate loss on all outputs
+            total_loss = self.mse_loss(frame_patches, decoder_patches)
+        # Apply gradients.
+        train_vars = [
+            self.train_augmentation_model.trainable_variables,
+            self.patch_layer.trainable_variables,
+            self.patch_encoder.trainable_variables,
+            self.encoder.trainable_variables,
+            self.decoder.trainable_variables,
+        ]
+        grads = tape.gradient(total_loss, train_vars)
+        # import pdb
+        # pdb.set_trace()
+        tv_list = []
+        for (grad, var) in zip(grads, train_vars):
+            for g, v in zip(grad, var):
+                tv_list.append((g, v))
+        self.optimizer.apply_gradients(tv_list)
+
+        # Report progress.
+
+        self.loss_tracker.update_state(total_loss)
+        self.mae_metric.update_state(loss_patch, loss_output)
+        return {"loss": self.loss_tracker.result(), "mae": self.mae_metric.result()}
+
+    def test_step(self, data):
+        videos, next_frames = data
+        aug_videos, next_frame = self.test_augmentation_model([videos, next_frames])
+        vid_patches, frame_patches = self.patch_layer([aug_videos, next_frame])
+
+        decoder_outputs = self(vid_patches)
         decoder_patches = tf.image.extract_patches(
             images=decoder_outputs,
             sizes=[1, self.patch_layer.patch_size, self.patch_layer.patch_size, 1],
@@ -676,41 +735,19 @@ class MaskedAutoencoder(keras.Model):
         # Calculate loss on masked patches
         # total_loss = self.compiled_loss(loss_patch, loss_output)
         # # Calculate loss on all outputs
-        total_loss = self.compiled_loss(frame_patches, decoder_patches)
+        total_loss = self.mse_loss(frame_patches, decoder_patches)
+        self.loss_tracker.update_state(total_loss)
+        self.mae_metric.update_state(loss_patch, loss_output)
+        return {"loss": self.loss_tracker.result(), "mae": self.mae_metric.result()}
 
-        return total_loss, loss_patch, loss_output
-
-    def train_step(self, data):
-        videos, next_frames = data
-        with tf.GradientTape() as tape:
-            total_loss, loss_patch, loss_output = self.calculate_loss([videos, next_frames])
-        # Apply gradients.
-        train_vars = [
-            self.train_augmentation_model.trainable_variables,
-            self.patch_layer.trainable_variables,
-            self.patch_encoder.trainable_variables,
-            self.encoder.trainable_variables,
-            self.decoder.trainable_variables,
-        ]
-        grads = tape.gradient(total_loss, train_vars)
-        # import pdb
-        # pdb.set_trace()
-        tv_list = []
-        for (grad, var) in zip(grads, train_vars):
-            for g, v in zip(grad, var):
-                tv_list.append((g, v))
-        self.optimizer.apply_gradients(tv_list)
-
-        # Report progress.
-        self.compiled_metrics.update_state(loss_patch, loss_output)
-        return {m.name: m.result() for m in self.metrics}
-
-    def test_step(self, data):
-        videos, next_frames = data
-        total_loss, loss_patch, loss_output = self.calculate_loss([videos, next_frames], test=True)
-        # Update the trackers.
-        self.compiled_metrics.update_state(loss_patch, loss_output)
-        return {m.name: m.result() for m in self.metrics}
+    @property
+    def metrics(self):
+        # We list our `Metric` objects here so that `reset_states()` can be
+        # called automatically at the start of each epoch
+        # or at the start of `evaluate()`.
+        # If you don't implement this property, you have to call
+        # `reset_states()` yourself at the time of your choosing.
+        return [self.loss_tracker, self.mae_metric]
 
 
 mae_model = MaskedAutoencoder(
