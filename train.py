@@ -431,7 +431,7 @@ class PatchEncoder(layers.Layer):
             for i in range(len(mask_tokens)):
                 mask_tokens[i] = self.projection(mask_tokens[i])
             # (B, num_patches, projection_dim)
-            mask_tokens = tf.stack(mask_tokens, axis=1)d
+            mask_tokens = tf.stack(mask_tokens, axis=1)
             # Get the masked embeddings for the tokens.
             masked_embeddings = mask_tokens + masked_positions
             return (
