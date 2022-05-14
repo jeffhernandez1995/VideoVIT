@@ -61,12 +61,26 @@ DEC_TRANSFORMER_UNITS = [
     DEC_PROJECTION_DIM,
 ]
 
+
+MIXED_PRECISION = False
+XLA_ACCELERATE = False
+
+if MIXED_PRECISION:
+    from tensorflow.keras.mixed_precision import experimental as mixed_precision
+    if tpu: policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+    else: policy = tf.keras.mixed_precision.experimental.Policy('mixed_float16')
+    mixed_precision.set_policy(policy)
+    print('Mixed precision enabled')
+
+if XLA_ACCELERATE:
+    tf.config.optimizer.set_jit(True)
+    print('Accelerated Linear Algebra enabled')
+
 """Returns a Dataset for reading from a SageMaker PipeMode channel."""
 features = {
     'video': tf.io.FixedLenFeature([], tf.string),
     'frame': tf.io.FixedLenFeature([], tf.string),
 }
-
 
 def parse(record):
 
@@ -88,24 +102,6 @@ def parse(record):
     video_raw = tf.concat([video_raw, video_raw, video_raw], axis=-1)
     frame_raw = tf.concat([frame_raw, frame_raw, frame_raw], axis=-1)
     return video_raw, frame_raw
-
-
-files = tf.data.Dataset.list_files("datasets/KTH_tfrecords/training/*.tfrecord")
-train_ds = files.interleave(
-    lambda x: tf.data.TFRecordDataset(x).prefetch(100),
-    cycle_length=8
-)
-train_ds = train_ds.map(parse, num_parallel_calls=AUTO)
-train_ds = train_ds.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).prefetch(AUTO)
-
-
-files = tf.data.Dataset.list_files("datasets/KTH_tfrecords/validation/*.tfrecord")
-val_ds = files.interleave(
-    lambda x: tf.data.TFRecordDataset(x).prefetch(100),
-    cycle_length=8
-)
-val_ds = val_ds.map(parse, num_parallel_calls=AUTO)
-val_ds = val_ds.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).prefetch(AUTO)
 
 
 def left_right_flip(video, frame):
@@ -751,27 +747,6 @@ class MaskedAutoencoder(keras.Model):
         return [self.loss_tracker, self.mae_metric]
 
 
-mae_model = MaskedAutoencoder(
-    input_shape=INPUT_SHAPE,
-    output_shape=OUTPUT_SHAPE,
-    crop_size=(CROP_SIZE, CROP_SIZE),
-    image_size=(IMAGE_SIZE, IMAGE_SIZE),
-    patch_size=PATCH_SIZE,
-    num_patches=NUM_PATCHES,
-    time_len=TIME_LEN,
-    mask_proportion=MASK_PROPORTION,
-    enc_projection_dim=ENC_PROJECTION_DIM,
-    enc_transformer_units=ENC_TRANSFORMER_UNITS,
-    num_enc_heads=ENC_NUM_HEADS,
-    num_enc_layers=ENC_LAYERS,
-    num_dec_layers=DEC_LAYERS,
-    num_dec_heads=DEC_NUM_HEADS,
-    dec_projection_dim=DEC_PROJECTION_DIM,
-    dec_transformer_units=DEC_TRANSFORMER_UNITS,
-    epsilon=LAYER_NORM_EPS,
-)
-
-
 class WarmUpCosine(keras.optimizers.schedules.LearningRateSchedule):
     def __init__(
         self, learning_rate_base, total_steps, warmup_learning_rate, warmup_steps
@@ -813,6 +788,75 @@ class WarmUpCosine(keras.optimizers.schedules.LearningRateSchedule):
         )
 
 
+class CollectGarbage(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        gc.collect()
+        tf.keras.backend.clear_session()
+
+        
+
+strategy = tf.distribute.get_strategy() # default distribution strategy in Tensorflow. Works on CPU and single GPU.
+print("REPLICAS: ", strategy.num_replicas_in_sync)
+
+with strategy.scope():
+
+    mae_model = MaskedAutoencoder(
+        input_shape=INPUT_SHAPE,
+        output_shape=OUTPUT_SHAPE,
+        crop_size=(CROP_SIZE, CROP_SIZE),
+        image_size=(IMAGE_SIZE, IMAGE_SIZE),
+        patch_size=PATCH_SIZE,
+        num_patches=NUM_PATCHES,
+        time_len=TIME_LEN,
+        mask_proportion=MASK_PROPORTION,
+        enc_projection_dim=ENC_PROJECTION_DIM,
+        enc_transformer_units=ENC_TRANSFORMER_UNITS,
+        num_enc_heads=ENC_NUM_HEADS,
+        num_enc_layers=ENC_LAYERS,
+        num_dec_layers=DEC_LAYERS,
+        num_dec_heads=DEC_NUM_HEADS,
+        dec_projection_dim=DEC_PROJECTION_DIM,
+        dec_transformer_units=DEC_TRANSFORMER_UNITS,
+        epsilon=LAYER_NORM_EPS,
+    )
+    
+    optimizer = tfa.optimizers.AdamW(learning_rate=scheduled_lrs, weight_decay=WEIGHT_DECAY)
+    # optimizer = tf.keras.optimizers.RMSprop(
+    #     learning_rate=scheduled_lrs
+    # )
+
+    # Compile and pretrain the model.
+    mae_model.compile(
+        optimizer=optimizer,
+        loss=keras.losses.MeanSquaredError(),
+        metrics=["mae"],
+        # run_eagerly=True
+        # jit_compile=True,
+        # steps_per_excution=32
+    )
+
+
+batch_size = BATCH_SIZE * strategy.num_replicas_in_sync    
+
+files = tf.data.Dataset.list_files("datasets/KTH_tfrecords/training/*.tfrecord")
+train_ds = files.interleave(
+    lambda x: tf.data.TFRecordDataset(x).prefetch(100),
+    cycle_length=8
+)
+train_ds = train_ds.map(parse, num_parallel_calls=AUTO)
+train_ds = train_ds.repeat()
+train_ds = train_ds.shuffle(BUFFER_SIZE).batch(batch_size).prefetch(AUTO)
+
+
+files = tf.data.Dataset.list_files("datasets/KTH_tfrecords/validation/*.tfrecord")
+val_ds = files.interleave(
+    lambda x: tf.data.TFRecordDataset(x).prefetch(100),
+    cycle_length=8
+)
+val_ds = val_ds.map(parse, num_parallel_calls=AUTO)
+val_ds = val_ds.repeat()
+val_ds = val_ds.shuffle(BUFFER_SIZE).batch(batch_size).prefetch(AUTO)
+
 total_steps = int((1815 / BATCH_SIZE) * EPOCHS)
 warmup_epoch_percentage = 0.15
 warmup_steps = int(total_steps * warmup_epoch_percentage)
@@ -833,29 +877,16 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
 )
 
 
-class CollectGarbage(tf.keras.callbacks.Callback):
-    def on_epoch_end(self, epoch, logs=None):
-        gc.collect()
-        tf.keras.backend.clear_session()
-
-
 train_callbacks = [
     model_checkpoint_callback,
     CollectGarbage(),
 ]
 
-optimizer = tfa.optimizers.AdamW(learning_rate=scheduled_lrs, weight_decay=WEIGHT_DECAY)
-# optimizer = tf.keras.optimizers.RMSprop(
-#     learning_rate=scheduled_lrs
-# )
-
-# Compile and pretrain the model.
-mae_model.compile(
-    optimizer=optimizer,
-    loss=keras.losses.MeanSquaredError(),
-    metrics=["mae"],
-    # run_eagerly=True
-)
 history = mae_model.fit(
-    train_ds, epochs=EPOCHS, validation_data=val_ds, callbacks=train_callbacks,
+    train_ds,
+    epochs=EPOCHS,
+    validation_data=val_ds,
+    steps_per_epoch=1815 // batch_size,
+    validation_steps=2013 // batch_size,
+    callbacks=train_callbacks,
 )
