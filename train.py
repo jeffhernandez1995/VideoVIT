@@ -1,3 +1,7 @@
+import os 
+os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"]="2" 
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+
 from tensorflow.keras import layers
 import tensorflow_addons as tfa
 from tensorflow import keras
@@ -793,7 +797,16 @@ class CollectGarbage(tf.keras.callbacks.Callback):
         gc.collect()
         tf.keras.backend.clear_session()
 
-        
+total_steps = int((3630 / BATCH_SIZE) * EPOCHS)
+warmup_epoch_percentage = 0.15
+warmup_steps = int(total_steps * warmup_epoch_percentage)
+scheduled_lrs = WarmUpCosine(
+    learning_rate_base=LEARNING_RATE,
+    total_steps=total_steps,
+    warmup_learning_rate=0.0,
+    warmup_steps=warmup_steps,
+)
+
 
 strategy = tf.distribute.get_strategy() # default distribution strategy in Tensorflow. Works on CPU and single GPU.
 print("REPLICAS: ", strategy.num_replicas_in_sync)
@@ -857,16 +870,6 @@ val_ds = val_ds.map(parse, num_parallel_calls=AUTO)
 val_ds = val_ds.repeat()
 val_ds = val_ds.shuffle(BUFFER_SIZE).batch(batch_size).prefetch(AUTO)
 
-total_steps = int((1815 / BATCH_SIZE) * EPOCHS)
-warmup_epoch_percentage = 0.15
-warmup_steps = int(total_steps * warmup_epoch_percentage)
-scheduled_lrs = WarmUpCosine(
-    learning_rate_base=LEARNING_RATE,
-    total_steps=total_steps,
-    warmup_learning_rate=0.0,
-    warmup_steps=warmup_steps,
-)
-
 model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath='models/KTH/',
     monitor='val_loss',
@@ -886,7 +889,7 @@ history = mae_model.fit(
     train_ds,
     epochs=EPOCHS,
     validation_data=val_ds,
-    steps_per_epoch=1815 // batch_size,
-    validation_steps=2013 // batch_size,
+    steps_per_epoch=3630 // batch_size,
+    validation_steps=7656 // batch_size,
     callbacks=train_callbacks,
 )
