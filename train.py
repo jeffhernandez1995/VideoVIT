@@ -618,7 +618,7 @@ class MaskedAutoencoder(keras.Model):
             transformer_units=dec_transformer_units,
             image_size=image_size[0],
         )
-        self.resize = layers.Reshape((-1, patch_size * patch_size * 1))
+        self.resize = layers.Reshape((-1, patch_size * patch_size * 3))
         self.mse_loss = tf.keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error")
         self.loss_tracker = keras.metrics.Mean(name="loss")
         self.mae_metric = keras.metrics.MeanAbsoluteError(name="mae")
@@ -832,6 +832,7 @@ with strategy.scope():
         dec_transformer_units=DEC_TRANSFORMER_UNITS,
         epsilon=LAYER_NORM_EPS,
     )
+
     
     optimizer = tfa.optimizers.AdamW(learning_rate=scheduled_lrs, weight_decay=WEIGHT_DECAY)
     # optimizer = tf.keras.optimizers.RMSprop(
