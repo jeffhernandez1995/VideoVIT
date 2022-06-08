@@ -66,9 +66,9 @@ def make_dataset(dir, mode, class_to_idx, extensions):
     return dataset
 
 
-def get_samples(root, extensions=(".mp4", ".avi")):
+def get_samples(root, mode, extensions=(".mp4", ".avi")):
     _, class_to_idx = _find_classes(root)
-    return make_dataset(root, class_to_idx, extensions=extensions)
+    return make_dataset(root, mode, class_to_idx, extensions=extensions)
 
 
 class KTHDataset(torch.utils.data.IterableDataset):
@@ -83,7 +83,7 @@ class KTHDataset(torch.utils.data.IterableDataset):
     ):
         super(KTHDataset).__init__()
 
-        self.samples = get_samples(root)
+        self.samples = get_samples(root, mode)
 
         # Allow for temporal jittering
         if epoch_size is None:
