@@ -1,6 +1,6 @@
 import os 
-os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"]="2" 
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+# os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"]="2" 
+# os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 from tensorflow.keras import layers
 import tensorflow_addons as tfa
@@ -17,11 +17,20 @@ from itertools import product
 import numpy as np
 import random
 
+from tensorflow.keras.applications.resnet50 import ResNet50
+
+resnet = ResNet50()
+# summarize the resnet
+resnet.summary()
+assert 2 == 1
+
 # Setting seeds for reproducibility.
 SEED = 42
 keras.utils.set_random_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)
+
+
 
 # DATA
 BUFFER_SIZE = 300

@@ -39,9 +39,9 @@ tf_sizes = {
     'validation': 2013,
     'testing': 2193
 }
-mode = 'testing'
+mode = 'validation'
 tf_size = tf_sizes[mode]
-TASK_ID = 'prediction'
+TASK_ID = mode
 OUT_PATH = f'datasets/KTH_tfrecords/{mode}'
 
 
@@ -80,8 +80,9 @@ def make_raw_dataset(
 
     input_vids = []
     output_img = []
+    labels_cat = []
     frames_idx = parse_sequence_file(sequence_file)
-    for cat in categories:
+    for c, cat in enumerate(categories):
         folder_name = f'{PREFIX}/{cat}'
         filenames = sorted(glob.glob(f'{folder_name}/*.avi'))
         for filename in filenames:
@@ -116,13 +117,15 @@ def make_raw_dataset(
                 videos.append(video)
             videos = np.concatenate(videos, axis=0)
             input_vids.append(videos[:, :NUM_FRAMES, ...])
+            labels_cat.extend([c] * videos.shape[0])
             output_img.append(videos[:, -1, ...])
     inputs = np.concatenate(input_vids, axis=0)
     outputs = np.concatenate(output_img, axis=0)
-    return inputs, outputs
+    labels = np.array(labels_cat)
+    return inputs, outputs, labels
 
 
-inputs, outputs = (
+inputs, outputs, labels = (
     make_raw_dataset(mode, f'{PREFIX}/sequences.txt', CATEGORIES)
 )
 N, T, W, H = inputs.shape
@@ -137,6 +140,7 @@ indices = np.random.choice(
 
 inputs = inputs[indices].reshape([-1, tf_size, T, W, H])
 outputs = outputs[indices].reshape([-1, tf_size, W, H])
+labels = labels[indices].reshape([-1, tf_size])
 print(inputs.shape)
 
 for i in range(inputs.shape[0]):
@@ -155,6 +159,9 @@ for i in range(inputs.shape[0]):
                         ),
                         'frame': _bytes_feature(
                                 outputs[i, j].tobytes()
+                        ),
+                        'label': _int64_feature(
+                            labels[i, j]
                         )
                     }
                 )
