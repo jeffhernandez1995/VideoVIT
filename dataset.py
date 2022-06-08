@@ -1,6 +1,7 @@
 import os
 import random
 
+import glob
 import re
 import torch.utils.data
 import torchvision
@@ -43,8 +44,8 @@ def _find_classes(dir):
     return classes, class_to_idx
 
 
-def make_dataset(dir, mode, class_to_idx, extensions):
-    seq_filename = os.path.join(dir, "sequences.txt")
+def make_dataset(root, mode, class_to_idx, extensions):
+    seq_filename = os.path.join(root, "sequences.txt")
     frames_idx = parse_sequence_file(seq_filename)
 
     if mode == "training":
@@ -55,9 +56,14 @@ def make_dataset(dir, mode, class_to_idx, extensions):
         IDS = TEST_PEOPLE_ID
 
     dataset = []
-    for filename, frames in frames_idx.items():
+    # get all the files in the directory root
+    # and append the ones that match the extensions
+    filenames = sorted(glob.glob(f'{root}/*/*'))
+    for filename in filenames:
+        name = filename.split("/")[-1]
+        name, frames = frames_idx[name]
         if filename.endswith(extensions):
-            person_id = int(re.findall(r'\d+', filename.split("_")[1])[0])
+            person_id = int(re.findall(r'\d+', name.split("_")[1])[0])
             if person_id not in IDS:
                 continue
             dataset.append(
@@ -141,6 +147,7 @@ if __name__ == "__main__":
 
     dataset = KTHDataset(
         root='datasets/KTH_raw',
+        mode='training',
         epoch_size=None,
         frame_transform=transform,
         video_transform=None,
