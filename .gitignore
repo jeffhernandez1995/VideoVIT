@@ -5,6 +5,7 @@ __pycache__/
 
 models/**
 datasets/**
+output/**
 
 # Video files
 *.mp4

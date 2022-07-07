@@ -47,6 +47,9 @@ from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
     RandomResizedCropRGBImageDecoder
 from ffcv.fields.basics import IntDecoder
 
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
+IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
+
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
@@ -601,7 +604,7 @@ def main():
     # )
 
     train_decoder = RandomResizedCropRGBImageDecoder(
-        (data_config['input_size'], data_config['input_size'])
+        data_config['input_size'][1:]
     )
     image_pipeline: List[Operation] = [
         train_decoder,
@@ -609,7 +612,7 @@ def main():
         ToTensor(),
         ToDevice(torch.device('cuda:0'), non_blocking=True),
         ToTorchImage(),
-        NormalizeImage(data_config['mean'] * 255, data_config['std'] * 255, np.float16)
+        NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16)
     ]
 
     label_pipeline: List[Operation] = [
@@ -625,7 +628,7 @@ def main():
         batch_size=args.batch_size,
         num_workers=args.workers,
         order=order,
-        os_cache=True,
+        os_cache=1,
         drop_last=True,
         pipelines={
             'image': image_pipeline,
@@ -649,14 +652,14 @@ def main():
     #     pin_memory=args.pin_mem,
     # )
 
-    res_tuple = (data_config['input_size'], data_config['input_size'])
+    res_tuple = data_config['input_size'][1:]
     cropper = CenterCropRGBImageDecoder(res_tuple, ratio=data_config['crop_pct'])
     image_pipeline = [
         cropper,
         ToTensor(),
         ToDevice(torch.device('cuda:0'), non_blocking=True),
         ToTorchImage(),
-        NormalizeImage(data_config['mean'] * 255, data_config['std'] * 255, np.float16)
+        NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16)
     ]
 
     label_pipeline = [
