@@ -4,13 +4,44 @@ __pycache__/
 *$py.class
 
 models/**
+datasets/**
 
 # Video files
 *.mp4
 *.avi
+*.mov
+*.mkv
+*.wmv
+*.mpg
+
+# Audio files
+*.mp3
+*.wav
+*.flac
+*.ogg
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.webp
+*.svg
+
+# Pytorch files
+*.pt
+*.pth
+*.pkl
+*.pkla
 
 # TensorFlow
 *.tfrecord
+*.tfrecord.index
+*.ckpt
+*.ckpt.index
 
 # C extensions
 *.so

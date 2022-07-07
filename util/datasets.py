@@ -61,9 +61,9 @@ def make_dataset(root, mode, class_to_idx, extensions):
     filenames = sorted(glob.glob(f'{root}/*/*'))
     for filename in filenames:
         name = filename.split("/")[-1]
-        name, frames = frames_idx[name]
+        frames = frames_idx[name]
         if filename.endswith(extensions):
-            person_id = int(re.findall(r'\d+', name.split("_")[1])[0])
+            person_id = int(re.findall(r'\d+', name.split("_")[0])[0])
             if person_id not in IDS:
                 continue
             dataset.append(
@@ -117,17 +117,19 @@ class KTHDataset(torch.utils.data.IterableDataset):
                 (self.clip_len / metadata["video"]['fps'][0])
             )
             start = random.uniform(min_seek, max_seek)
-            for frame in itertools.islice(vid.seek(start), self.clip_len):
+            for frame in itertools.islice(vid.seek(start), self.clip_len + 1):
                 video_frames.append(self.frame_transform(frame['data']))
                 current_pts = frame['pts']
             # Stack it into a tensor
-            video = torch.stack(video_frames, 0)
+            next_frame = video_frames[-1]
+            video = torch.stack(video_frames[:-1], 0)
             if self.video_transform:
                 video = self.video_transform(video)
             output = {
                 'path': path,
                 'video': video,
                 'target': target,
+                'netx_frame': next_frame,
                 'start': start,
                 'end': current_pts
             }
