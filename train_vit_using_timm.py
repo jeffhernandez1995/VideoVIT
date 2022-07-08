@@ -380,7 +380,7 @@ def main():
 
     if args.rank == 0 and args.log_wandb:
         if has_wandb:
-            wandb.init(project=args.experiment, config=args)
+            wandb.init(project=args.experiment, entity="jeffhernandez1995", config=args)
         else:
             _logger.warning("You've requested to log metrics to wandb but package not found. "
                             "Metrics not being logged to wandb, try `pip install wandb`")
@@ -624,7 +624,7 @@ def main():
 
     order = OrderOption.RANDOM if args.distributed else OrderOption.QUASI_RANDOM
     loader_train = Loader(
-        f"{args.data_dir}/train_320_1_90.ffcv",
+        f"{args.data_dir}/train_500_1_90.ffcv",
         batch_size=args.batch_size,
         num_workers=args.workers,
         order=order,
@@ -671,7 +671,7 @@ def main():
     ]
 
     loader_eval = Loader(
-        f"{args.data_dir}/val_320_1_90.ffcv",
+        f"{args.data_dir}/val_500_1_90.ffcv",
         batch_size=args.validation_batch_size or args.batch_size,
         num_workers=args.workers,
         order=OrderOption.SEQUENTIAL,
