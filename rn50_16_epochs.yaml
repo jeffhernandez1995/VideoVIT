@@ -2,7 +2,7 @@ data:
   in_memory: 1
   num_workers: 12
 dist:
-  world_size: 8
+  world_size: 2
 logging:
   folder: /tmp/
 lr:
