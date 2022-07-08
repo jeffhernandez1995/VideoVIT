@@ -610,7 +610,7 @@ def main():
         train_decoder,
         RandomHorizontalFlip(),
         ToTensor(),
-        ToDevice(torch.device('cuda:0'), non_blocking=True),
+        ToDevice(torch.device(args.device), non_blocking=True),
         ToTorchImage(),
         NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16)
     ]
@@ -619,7 +619,7 @@ def main():
         IntDecoder(),
         ToTensor(),
         Squeeze(),
-        ToDevice(torch.device('cuda:0'), non_blocking=True)
+        ToDevice(torch.device(args.device), non_blocking=True)
     ]
 
     order = OrderOption.RANDOM if args.distributed else OrderOption.QUASI_RANDOM
@@ -657,7 +657,7 @@ def main():
     image_pipeline = [
         cropper,
         ToTensor(),
-        ToDevice(torch.cuda.current_device(), non_blocking=True),
+        ToDevice(torch.device(args.device), non_blocking=True),
         ToTorchImage(),
         NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16)
     ]
@@ -666,7 +666,7 @@ def main():
         IntDecoder(),
         ToTensor(),
         Squeeze(),
-        ToDevice(torch.cuda.current_device(),
+        ToDevice(torch.device(args.device),
         non_blocking=True)
     ]
 
