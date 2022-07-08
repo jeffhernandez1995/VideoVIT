@@ -375,7 +375,7 @@ class ImageNetTrainer:
 
             ### Logging start
             if log_level > 0:
-                losses.append(loss_train.detach())
+                losses.append(loss_train.item())
 
                 group_lrs = []
                 for _, group in enumerate(self.optimizer.param_groups):
@@ -390,6 +390,7 @@ class ImageNetTrainer:
                 msg = ', '.join(f'{n}={v}' for n, v in zip(names, values))
                 iterator.set_description(msg)
             ### Logging end
+        return np.mean(losses)
 
     @param('validation.lr_tta')
     def val_loop(self, lr_tta):

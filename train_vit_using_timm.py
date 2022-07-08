@@ -16,6 +16,7 @@ Hacked together by / Copyright 2020 Ross Wightman (https://github.com/rwightman)
 import argparse
 import logging
 import os
+from random import seed
 import time
 from collections import OrderedDict
 from contextlib import suppress
@@ -628,13 +629,14 @@ def main():
         batch_size=args.batch_size,
         num_workers=args.workers,
         order=order,
-        os_cache=1,
+        os_cache=True,
         drop_last=True,
         pipelines={
             'image': image_pipeline,
             'label': label_pipeline
         },
-        distributed=args.distributed
+        distributed=args.distributed,
+        seed=args.seed,
     )
 
     # loader_eval = create_loader(
