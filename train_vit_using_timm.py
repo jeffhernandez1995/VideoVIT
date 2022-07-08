@@ -671,7 +671,7 @@ def main():
     ]
 
     loader_eval = Loader(
-        f"{args.data_dir}/val_500_1_90.ffcv",
+        f"{args.data_dir}/validation_500_1_90.ffcv",
         batch_size=args.validation_batch_size or args.batch_size,
         num_workers=args.workers,
         order=OrderOption.SEQUENTIAL,
