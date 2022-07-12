@@ -114,7 +114,7 @@ class Video(VisionDataset):
                 print('skipped idx', idx)
                 idx = np.random.randint(self.__len__())
         # Seek and return frames
-        frame = self.transform(frame.squeeze(0))
+        frame = self.transform(frame[0])
         return frame, target
 
 
