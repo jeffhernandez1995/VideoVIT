@@ -19,8 +19,11 @@ import util.lr_sched as lr_sched
 
 
 def train_one_epoch(model: torch.nn.Module,
-                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler,
+                    data_loader: Iterable,
+                    optimizer: torch.optim.Optimizer,
+                    device: torch.device,
+                    epoch: int,
+                    loss_scaler,
                     log_writer=None,
                     args=None):
     model.train(True)
@@ -33,8 +36,8 @@ def train_one_epoch(model: torch.nn.Module,
 
     optimizer.zero_grad()
 
-    if log_writer is not None:
-        print('log_dir: {}'.format(log_writer.log_dir))
+    # if log_writer is not None:
+    #     print('log_dir: {}'.format(log_writer.log_dir))
 
     for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
@@ -72,9 +75,12 @@ def train_one_epoch(model: torch.nn.Module,
             This calibrates different curves when batch size changes.
             """
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('lr', lr, epoch_1000x)
-
+            log_writer.log({
+                    'train_loss': loss_value_reduce, 
+                    'lr': lr,
+                },
+                step=epoch_1000x,
+            )
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

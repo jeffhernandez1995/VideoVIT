@@ -37,8 +37,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
     optimizer.zero_grad()
 
-    if log_writer is not None:
-        print('log_dir: {}'.format(log_writer.log_dir))
+    # if log_writer is not None:
+    #     print('log_dir: {}'.format(log_writer.log_dir))
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
@@ -86,8 +86,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             This calibrates different curves when batch size changes.
             """
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('loss', loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('lr', max_lr, epoch_1000x)
+            log_writer.log({'loss': loss_value_reduce, 'lr': max_lr}, step=epoch_1000x)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -96,7 +95,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device):
+def evaluate(data_loader, model, device, epoch, log_writer=None):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -122,9 +121,17 @@ def evaluate(data_loader, model, device):
         metric_logger.update(loss=loss.item())
         metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
         metric_logger.meters['acc5'].update(acc5.item(), n=batch_size)
+
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
+
+    if log_writer is not None:
+        log_writer.log({
+            'val_test_acc1': metric_logger.meters['acc1'].global_avg,
+            'val_test_acc5': metric_logger.meters['acc5'].global_avg,
+            'val_test_loss': metric_logger.meters['loss'].global_avg
+        })
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
