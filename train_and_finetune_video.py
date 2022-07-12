@@ -105,7 +105,8 @@ class Video(VisionDataset):
                     path,
                     start_pts=start,
                     end_pts=start,
-                    pts_unit='sec'
+                    pts_unit='sec',
+                    output_format="TCHW"
                 )
                 success = True
             except Exception as e:
