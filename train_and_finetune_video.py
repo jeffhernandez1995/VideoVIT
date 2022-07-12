@@ -281,7 +281,7 @@ def main(args):
 
     order = OrderOption.RANDOM if args.distributed else OrderOption.QUASI_RANDOM
     loader_train = Loader(
-        f"{args.finetune_path}/train_320_1_90.ffcv",
+        f"{args.finetune_path}/train_500_1_90.ffcv",
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         order=order,
@@ -316,7 +316,7 @@ def main(args):
     ]
 
     loader_eval = Loader(
-        f"{args.finetune_path}/val_320_1_90.ffcv",
+        f"{args.finetune_path}/validation_500_1_90.ffcv",
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         order=OrderOption.SEQUENTIAL,
