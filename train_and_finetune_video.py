@@ -214,8 +214,8 @@ def main(args):
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     # print(dataset_train)
     dataset_train = Video(
-        # os.path.join(args.train_path, 'train'),
-        args.train_path,
+        os.path.join(args.train_path, 'training'),
+        # args.train_path,
         extensions=('mp4', 'avi'),
         transform=transform,
     )
