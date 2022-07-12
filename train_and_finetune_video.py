@@ -32,6 +32,7 @@ import wandb
 from util.lars import LARS
 
 import torchvision.datasets.video_utils
+from torchvision.io import read_video
 
 # from torchvision.datasets.video_utils import VideoClips
 from torchvision.datasets.utils import list_dir
@@ -52,8 +53,23 @@ from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
     RandomResizedCropRGBImageDecoder
 from ffcv.fields.basics import IntDecoder
 
+import ffmpeg
+
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
+
+
+def get_video_size(filename):
+    probe = ffmpeg.probe(filename)
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    try:
+        n_frames = int(video_info['nb_frames'])
+    except KeyError:
+        n_frames = float(video_info['duration']) * eval(video_info['r_frame_rate'])
+    frame_rate = eval(video_info['r_frame_rate'])
+    width = int(video_info['width'])
+    height = int(video_info['height'])
+    return width, height, int(n_frames), frame_rate, float(video_info['duration'])
 
 
 class Video(VisionDataset):
@@ -83,12 +99,14 @@ class Video(VisionDataset):
         while not success:
             try:
                 path, target = self.samples[idx]
-                vid = torchvision.io.VideoReader(path, "video")
-                metadata = vid.get_metadata()
-                max_seek = metadata["video"]['duration'][0]
-                start = random.uniform(0., max_seek)
-                vid.seek(start)
-                frame = next(vid)['data']
+                _, _, _, _, duration = get_video_size(path)
+                start = random.uniform(0., duration)
+                frame, _, _ = torchvision.io.read_video(
+                    path,
+                    start_pts=start,
+                    end_pts=start,
+                    pts_unit='sec'
+                )
                 success = True
             except Exception as e:
                 print(e)
