@@ -90,7 +90,8 @@ class Video(VisionDataset):
                 vid.seek(start)
                 frame = next(vid)['data']
                 success = True
-            except:
+            except Exception as e:
+                print(e)
                 print('skipped idx', idx)
                 idx = np.random.randint(self.__len__())
         # Seek and return frames
