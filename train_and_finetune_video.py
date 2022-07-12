@@ -247,7 +247,7 @@ def main(args):
     assert args.rank >= 0
 
     if args.rank == 0 and args.log_wandb:
-        logger = wandb.init(project="imagenet-tests", entity="jeffhernandez1995", config=args)
+        logger = wandb.init(project="imagenet", entity="jeffhernandez1995", config=args)
     else:
         logger = None
 
