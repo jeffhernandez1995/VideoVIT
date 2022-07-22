@@ -257,13 +257,13 @@ def main(args):
             '1 GPU per process. Process %d, total %d.'
             % (args.rank, args.world_size)
         )
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=args.world_size, rank=args.rank, shuffle=True
-        )
-        print("Sampler_train = %s" % str(sampler_train))
+        # sampler_train = torch.utils.data.DistributedSampler(
+        #     dataset_train, num_replicas=args.world_size, rank=args.rank, shuffle=True
+        # )
+        # print("Sampler_train = %s" % str(sampler_train))
     else:
         print('Training with a single process on 1 GPUs.')
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        # sampler_train = torch.utils.data.RandomSampler(dataset_train)
     assert args.rank >= 0
 
     if args.rank == 0 and args.log_wandb:
