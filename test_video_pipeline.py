@@ -1,5 +1,7 @@
 import ffmpeg
 import numpy as np
+import decord as de
+from io import BytesIO
 import cv2
 import subprocess
 from functools import partial
@@ -27,6 +29,7 @@ from ffcv.pipeline.state import State
 from ffcv.libffcv import memcpy
 
 Compiler.set_enabled(False)
+
 
 class ImageFromVideoDecoder(Operation):
     def __init__(
@@ -64,7 +67,7 @@ class ImageFromVideoDecoder(Operation):
     def generate_code(self) -> Callable:
         mem_read = self.memory_read
         my_range = Compiler.get_iterator()
-        my_bytes2video = Compiler.compile(bytes2video)
+        # my_bytes2video = Compiler.compile(de.VideoReader)
         my_memcpy = Compiler.compile(memcpy)
 
         def decode(batch_indices, destination, metadata, storage_state):
@@ -73,11 +76,12 @@ class ImageFromVideoDecoder(Operation):
                 field = metadata[source_ix]
                 video_data = mem_read(field['data_ptr'], storage_state)
                 height, width, fps, n_frames = field['height'], field['width'], field['fps'], field['n_frames']
-                print(video_data)
                 vidbytes = video_data.tobytes()
                 # sample random frame
                 frame_ix = np.random.randint(0, n_frames)
-                vid_np = np.frombuffer(my_bytes2video(vidbytes, frame_ix), dtype=np.uint8)
+                video = de.VideoReader(BytesIO(vidbytes))
+
+                vid_np = video[frame_ix].asnumpy()
 
                 # resize to fit destination
                 vid_np = vid_np.reshape((height, width, 3))
@@ -127,8 +131,9 @@ class VideoField(Field):
         destination['n_frames'] = n_frames
         destination['fps'] = frame_rate
 
-        as_video = video2bytes(video_path, self.max_width)
-        as_video = np.frombuffer(as_video, dtype=np.uint8)
+        with open(video_path, 'rb') as fid:
+            as_video = fid.read()
+            as_video = np.frombuffer(as_video, dtype=np.uint8)
 
         destination['data_ptr'], storage = malloc(as_video.nbytes)
         storage[:] = as_video
@@ -165,19 +170,15 @@ def video2bytes(filename, width=None, height=None):
     return procces.stdout.read()
 
 
-def bytes2video(videobytes, frame_num):
-    args = (
-        ffmpeg
-        .input('pipe:', format='avi')
-        .filter('select', 'gte(n,{})'.format(frame_num))
-        .output('pipe:', format='rawvideo', pix_fmt='rgb24')
-        .compile()
-    )
-    procces = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    procces.stdin.write(videobytes)
-    procces.wait()
-    return procces.stdout.read()
+# video_name = "datasets/KTH_raw/boxing/person01_boxing_d1_uncomp.avi"
+# with open(video_name, 'rb') as fid:
+#     video_bytes = fid.read()
+#     as_video = np.frombuffer(video_bytes, dtype=np.uint8)
 
+# print(as_video.shape)
+# vr = de.VideoReader(BytesIO(video_bytes))
+# print(len(vr))
+# assert 2 == 3
 
 # dataset = DatasetFolder(
 #     root='datasets/KTH_raw/',

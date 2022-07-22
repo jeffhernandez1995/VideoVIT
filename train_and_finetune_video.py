@@ -59,28 +59,15 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 
-def get_video_size(filename):
-    probe = ffmpeg.probe(filename)
-    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
-    try:
-        n_frames = int(video_info['nb_frames'])
-    except KeyError:
-        n_frames = float(video_info['duration']) * eval(video_info['r_frame_rate'])
-    frame_rate = eval(video_info['r_frame_rate'])
-    width = int(video_info['width'])
-    height = int(video_info['height'])
-    return width, height, int(n_frames), frame_rate, float(video_info['duration'])
-
-
-class Video(VisionDataset):
-
+class VideoDataset(VisionDataset):
     def __init__(
         self,
         root,
         extensions=('mp4', 'avi'),
-        transform=None,
+        transform=None
     ):
-        super(Video, self).__init__(root)
+        super(VideoDataset).__init__()
+
         extensions = extensions
 
         classes = list(sorted(list_dir(root)))
@@ -95,26 +82,18 @@ class Video(VisionDataset):
 
     def __getitem__(self, idx):
         # Get random sample
-        success = False
-        while not success:
-            try:
-                path, target = self.samples[idx]
-                _, _, _, _, duration = get_video_size(path)
-                start = random.uniform(0., duration)
-                frame, _, _ = torchvision.io.read_video(
-                    path,
-                    start_pts=start,
-                    end_pts=start,
-                    pts_unit='sec',
-                    output_format="TCHW"
-                )
-                success = True
-            except Exception as e:
-                print(e)
-                print('skipped idx', idx)
-                idx = np.random.randint(self.__len__())
+        path, target = self.samples[idx]
+        # Get video object
+        vid = torchvision.io.VideoReader(path, "video")
+        metadata = vid.get_metadata()
+
         # Seek and return frames
-        frame = self.transform(frame[0])
+        max_seek = metadata["video"]['duration'][0]
+        start = random.uniform(0., max_seek)
+        frame = next(vid.seek(start))['data']
+        if self.transform:
+            frame = self.transform(frame)
+
         return frame, target
 
 
@@ -233,7 +212,7 @@ def main(args):
     ])
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     # print(dataset_train)
-    dataset_train = Video(
+    dataset_train = VideoDataset(
         os.path.join(args.train_path, 'training'),
         # args.train_path,
         extensions=('mp4', 'avi'),
