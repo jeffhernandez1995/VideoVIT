@@ -230,7 +230,7 @@ def main(args):
     ])
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     # print(dataset_train)
-    sharedurl = f"{args.train_path}/training/MOMENTS-training-{000000..000285}.tar"
+    sharedurl = args.train_path + "/training/MOMENTS-training-{000000..000285}.tar"
     dataset_train = (
         wds.WebDataset(sharedurl)
         .shuffle(1000)
