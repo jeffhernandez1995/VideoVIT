@@ -31,9 +31,10 @@ from engine_finetune import evaluate
 import wandb
 from util.lars import LARS
 
-import torchvision.datasets.video_utils
-from torchvision.io import read_video
+from io import BytesIO
 
+import torchvision.datasets.video_utils
+import webdataset as wds
 # from torchvision.datasets.video_utils import VideoClips
 from torchvision.datasets.utils import list_dir
 from torchvision.datasets.folder import make_dataset
@@ -53,48 +54,65 @@ from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
     RandomResizedCropRGBImageDecoder
 from ffcv.fields.basics import IntDecoder
 
-import ffmpeg
-
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 
-class VideoDataset(VisionDataset):
-    def __init__(
-        self,
-        root,
-        extensions=('mp4', 'avi'),
-        transform=None
-    ):
-        super(VideoDataset).__init__()
+def sample_single_frame(videobytes):
+    vid = torchvision.io.VideoReader(BytesIO(videobytes), "video")
+    metadata = vid.get_metadata()
 
-        extensions = extensions
+    # Seek and return frames
+    max_seek = metadata["video"]['duration'][0]
+    start = random.uniform(0., max_seek)
+    frame = next(vid.seek(start))['data']
+    return frame
 
-        classes = list(sorted(list_dir(root)))
-        class_to_idx = {classes[i]: i for i in range(len(classes))}
 
-        self.samples = make_dataset(self.root, class_to_idx, extensions, is_valid_file=None)
-        self.classes = classes
-        self.transform = transform
+def identity(x):
+    return x
 
-    def __len__(self):
-        return len(self.samples)
 
-    def __getitem__(self, idx):
-        # Get random sample
-        path, target = self.samples[idx]
-        # Get video object
-        vid = torchvision.io.VideoReader(path, "video")
-        metadata = vid.get_metadata()
+def to_int(x):
+    return int(x.decode("utf-8"))
 
-        # Seek and return frames
-        max_seek = metadata["video"]['duration'][0]
-        start = random.uniform(0., max_seek)
-        frame = next(vid.seek(start))['data']
-        if self.transform:
-            frame = self.transform(frame)
 
-        return frame, target
+# class VideoDataset(VisionDataset):
+#     def __init__(
+#         self,
+#         root,
+#         extensions=('mp4', 'avi'),
+#         transform=None
+#     ):
+#         super(VideoDataset).__init__()
+
+#         extensions = extensions
+
+#         classes = list(sorted(list_dir(root)))
+#         class_to_idx = {classes[i]: i for i in range(len(classes))}
+
+#         self.samples = make_dataset(self.root, class_to_idx, extensions, is_valid_file=None)
+#         self.classes = classes
+#         self.transform = transform
+
+#     def __len__(self):
+#         return len(self.samples)
+
+#     def __getitem__(self, idx):
+#         # Get random sample
+#         path, target = self.samples[idx]
+#         # Get video object
+#         vid = torchvision.io.VideoReader(path, "video")
+#         metadata = vid.get_metadata()
+
+#         # Seek and return frames
+#         max_seek = metadata["video"]['duration'][0]
+#         start = random.uniform(0., max_seek)
+#         frame = next(vid.seek(start))['data']
+#         if self.transform:
+#             frame = self.transform(frame)
+
+#         return frame, target
 
 
 def get_args_parser():
@@ -134,9 +152,9 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--train_path', default='datasets/KTH_raw/', type=str,
+    parser.add_argument('--train_path', default='datasets/moments_in_time_webdataset', type=str,
                         help='dataset path')
-    parser.add_argument('--finetune_path', default='datasets/imagenette_ffcv/', type=str,
+    parser.add_argument('--finetune_path', default='datasets/imagenet_ffcv', type=str,
                         help='dataset path')
 
     parser.add_argument('--eval_freq' , default=1, type=int)
@@ -212,11 +230,14 @@ def main(args):
     ])
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     # print(dataset_train)
-    dataset_train = VideoDataset(
-        os.path.join(args.train_path, 'training'),
-        # args.train_path,
-        extensions=('mp4', 'avi'),
-        transform=transform,
+    sharedurl = f"{args.train_path}/training/MOMENTS-training-{000000..000285}.tar"
+    dataset_train = (
+        wds.WebDataset(sharedurl)
+        .shuffle(1000)
+        .rename(video="mp4", label="cls")
+        .to_tuple("video", "label")
+        .map_tuple(sample_single_frame, identity)
+        .map_tuple(transform, to_int)
     )
 
     args.distributed = False
@@ -246,7 +267,7 @@ def main(args):
     assert args.rank >= 0
 
     if args.rank == 0 and args.log_wandb:
-        logger = wandb.init(project="imagenet", entity="jeffhernandez1995", config=args)
+        logger = wandb.init(project="mae-pretrain", entity="jeffhernandez1995", config=args)
     else:
         logger = None
 

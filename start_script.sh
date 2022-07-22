@@ -14,7 +14,7 @@ conda activate base
 conda install -y mamba -n base -c conda-forge
 
 mamba create -y -n torch python=3.8 gcc=9.4 cupy pkg-config compilers libjpeg-turbo opencv numba ffmpeg av -c conda-forge
-mamba install -y pytorch torchvision cudatoolkit=11.3 -n torch -c pytorch
+mamba install -y -n torch pytorch torchvision cudatoolkit=11.3 torchaudio  -c pytorch
 mamba install -y -n torch -c conda-forge cudatoolkit-dev=11.3
 
 conda activate torch
