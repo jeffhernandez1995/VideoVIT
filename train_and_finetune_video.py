@@ -348,13 +348,16 @@ def main(args):
         distributed=args.distributed
     )
 
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-    )
+    # data_loader_train = torch.utils.data.DataLoader(
+    #     dataset_train, sampler=sampler_train,
+    #     batch_size=args.batch_size,
+    #     num_workers=args.num_workers,
+    #     pin_memory=args.pin_mem,
+    #     drop_last=True,
+    # )
+    dataset_train = dataset_train.batched(args.batch_size, partial=False)
+
+    data_loader_train = wds.WebLoader(dataset_train, batch_size=None, shuffle=False, num_workers=args.num_workers)
 
     # define the model
     model = models_mae.__dict__[args.model](
