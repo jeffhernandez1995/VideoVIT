@@ -5,6 +5,7 @@ import numpy as np
 import os
 import time
 from pathlib import Path
+import math
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -59,6 +60,12 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 
 def sample_single_frame(videobytes):
+
+
+    _video_tensor = torch.tensor(
+        np.frombuffer(videobytes.getvalue(), dtype=np.uint8)
+    )
+
     vid = torchvision.io.VideoReader(BytesIO(videobytes), "video")
     metadata = vid.get_metadata()
 
@@ -231,6 +238,7 @@ def main(args):
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     # print(dataset_train)
     sharedurl = args.train_path + "/training/MOMENTS-training-{000000..000285}.tar"
+
     dataset_train = (
         wds.WebDataset(sharedurl)
         .shuffle(1000)
@@ -355,9 +363,40 @@ def main(args):
     #     pin_memory=args.pin_mem,
     #     drop_last=True,
     # )
-    dataset_train = dataset_train.batched(args.batch_size, partial=False)
+    # dataset_train = dataset_train.batched(args.batch_size, partial=False)
+    # print(dataset_train.end)
 
-    data_loader_train = wds.WebLoader(dataset_train, batch_size=None, shuffle=False, num_workers=args.num_workers)
+
+    data_loader_train = wds.WebLoader(
+        dataset_train,
+        batch_size=None,
+        shuffle=False,
+        num_workers=args.num_workers
+    )
+
+    length = 1281167 
+    number_of_batches = length / args.batch_size
+
+    def patch_iterable_ds_len(instance, func):
+        class _(type(instance)): # type(instance) is the class of the instance
+            def __len__(self, *arg, **kwarg): return func(*arg, **kwarg) # call the original __len__
+        instance.__class__ = _ # replace the class of the instance
+        return instance
+    
+
+    data_loader_train = patch_iterable_ds_len(
+        data_loader_train,
+        lambda: int(args.epochs * number_of_batches)
+    )
+
+    if args.distributed:
+        dataset_size = 1281167
+        number_of_batches = dataset_size // (args.batch_size * args.world_size)
+        print("# batches per node = ", number_of_batches)
+        data_loader_train = data_loader_train.repeat(2).slice(number_of_batches)
+        # This only sets the value returned by the len() function; nothing else uses it,
+        # but some frameworks care about it.
+
 
     # define the model
     model = models_mae.__dict__[args.model](

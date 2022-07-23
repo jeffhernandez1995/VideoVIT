@@ -6,6 +6,7 @@ __pycache__/
 models/**
 datasets/**
 output/**
+wandb/**
 
 # Video files
 *.mp4
